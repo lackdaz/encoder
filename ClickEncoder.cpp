@@ -41,11 +41,19 @@
 
 // ----------------------------------------------------------------------------
 
-ClickEncoder::ClickEncoder(int8_t A, int8_t B, int8_t BTN, uint8_t stepsPerNotch, bool active)
-  : doubleClickEnabled(true),buttonHeldEnabled(true), accelerationEnabled(true),
-    delta(0), last(0), acceleration(0),
-    button(Open), steps(stepsPerNotch),
-    pinA(A), pinB(B), pinBTN(BTN), pinsActive(active)
+ClickEncoder::ClickEncoder(int8_t A, int8_t B, int8_t BTN, uint8_t stepsPerNotch, bool active) : 
+  pinA(A), 
+  pinB(B), 
+  pinBTN(BTN), 
+  pinsActive(active),
+  delta(0), 
+  last(0),
+  steps(stepsPerNotch),
+  acceleration(0),
+  accelerationEnabled(true),
+  button(Open), 
+  doubleClickEnabled(true), 
+  buttonHeldEnabled(true)
 #ifndef WITHOUT_BUTTON
     , analogInput(false)
 #endif
@@ -71,11 +79,20 @@ ClickEncoder::ClickEncoder(int8_t A, int8_t B, int8_t BTN, uint8_t stepsPerNotch
 
 
 // Depricated.  Use DigitalButton instead
-ClickEncoder::ClickEncoder(int8_t BTN, bool active)
-  : doubleClickEnabled(true),buttonHeldEnabled(true), accelerationEnabled(true),
-    delta(0), last(0), acceleration(0),
-    button(Open), steps(1), analogInput(false),
-    pinA(-1), pinB(-1), pinBTN(BTN), pinsActive(active)
+ClickEncoder::ClickEncoder(int8_t BTN, bool active) : 
+  pinA(-1), 
+  pinB(-1), 
+  pinBTN(BTN), 
+  pinsActive(active),
+  delta(0), 
+  last(0), 
+  steps(1), 
+  acceleration(0),
+  accelerationEnabled(true),
+  button(Open), 
+  doubleClickEnabled(true),
+  buttonHeldEnabled(true), 
+  analogInput(false)
 {
   pinMode_t configType = (pinsActive == LOW) ? INPUT_PULLUP : INPUT;
   if (pinBTN >= 0) {pinMode(pinBTN, configType);}
@@ -117,108 +134,108 @@ void ClickEncoder::service(void)
   bool moved = false;
 
   if (pinA >= 0 && pinB >= 0) {
-  if (accelerationEnabled) { // decelerate every tick
-    acceleration -= ENC_ACCEL_DEC;
-    if (acceleration & 0x8000) { // handle overflow of MSB is set
-      acceleration = 0;
+    if (accelerationEnabled) { // decelerate every tick
+      acceleration -= ENC_ACCEL_DEC;
+      if (acceleration & 0x8000) { // handle overflow of MSB is set
+        acceleration = 0;
+      }
+    }
+
+    #if ENC_DECODER == ENC_FLAKY
+      last = (last << 2) & 0x0F;
+
+      if (digitalRead(pinA) == pinsActive) {
+        last |= 2;
+      }
+
+      if (digitalRead(pinB) == pinsActive) {
+        last |= 1;
+      }
+
+      int8_t tbl = pgm_read_byte(&table[last]); 
+      if (tbl) {
+        delta += tbl;
+        moved = true;
+      }
+    #elif ENC_DECODER == ENC_NORMAL
+      int8_t curr = 0;
+
+      if (digitalRead(pinA) == pinsActive) {
+        curr = 3;
+      }
+
+      if (digitalRead(pinB) == pinsActive) {
+        curr ^= 1;
+      }
+      
+      int8_t diff = last - curr;
+
+      if (diff & 1) {            // bit 0 = step
+        last = curr;
+        delta += (diff & 2) - 1; // bit 1 = direction (+/-)
+        moved = true;    
+      }
+    #else
+      # error "Error: define ENC_DECODER to ENC_NORMAL or ENC_FLAKY"
+    #endif
+
+    if (accelerationEnabled && moved) {
+      // increment accelerator if encoder has been moved
+      if (acceleration <= (ENC_ACCEL_TOP - ENC_ACCEL_INC)) {
+        acceleration += ENC_ACCEL_INC;
+      }
     }
   }
-
-#if ENC_DECODER == ENC_FLAKY
-  last = (last << 2) & 0x0F;
-
-  if (digitalRead(pinA) == pinsActive) {
-    last |= 2;
-  }
-
-  if (digitalRead(pinB) == pinsActive) {
-    last |= 1;
-  }
-
-  int8_t tbl = pgm_read_byte(&table[last]); 
-  if (tbl) {
-    delta += tbl;
-    moved = true;
-  }
-#elif ENC_DECODER == ENC_NORMAL
-  int8_t curr = 0;
-
-  if (digitalRead(pinA) == pinsActive) {
-    curr = 3;
-  }
-
-  if (digitalRead(pinB) == pinsActive) {
-    curr ^= 1;
-  }
-  
-  int8_t diff = last - curr;
-
-  if (diff & 1) {            // bit 0 = step
-    last = curr;
-    delta += (diff & 2) - 1; // bit 1 = direction (+/-)
-    moved = true;    
-  }
-#else
-# error "Error: define ENC_DECODER to ENC_NORMAL or ENC_FLAKY"
-#endif
-
-  if (accelerationEnabled && moved) {
-    // increment accelerator if encoder has been moved
-    if (acceleration <= (ENC_ACCEL_TOP - ENC_ACCEL_INC)) {
-      acceleration += ENC_ACCEL_INC;
-    }
-  }
-}
   // handle button
   //
-#ifndef WITHOUT_BUTTON
-  unsigned long currentMillis = millis();
-  if (currentMillis < lastButtonCheck) lastButtonCheck = 0;        // Handle case when millis() wraps back around to zero
-  if ((pinBTN > 0 || (pinBTN == 0 && buttonOnPinZeroEnabled))        // check button only, if a pin has been provided
-      && ((currentMillis - lastButtonCheck) >= ENC_BUTTONINTERVAL))            // checking button is sufficient every 10-30ms
-  { 
-    lastButtonCheck = currentMillis;
+  #ifndef WITHOUT_BUTTON
+    unsigned long currentMillis = millis();
+    if (currentMillis < lastButtonCheck) lastButtonCheck = 0;        // Handle case when millis() wraps back around to zero
+    if ((pinBTN > 0 || (pinBTN == 0 && buttonOnPinZeroEnabled))        // check button only, if a pin has been provided
+        && ((currentMillis - lastButtonCheck) >= ENC_BUTTONINTERVAL))            // checking button is sufficient every 10-30ms
+    { 
+      lastButtonCheck = currentMillis;
 
-    bool pinRead = getPinState();
-    
-    if (pinRead == pinsActive) { // key is down
-      keyDownTicks++;
-      if ((keyDownTicks > (buttonHoldTime / ENC_BUTTONINTERVAL)) && (buttonHeldEnabled)) {
-        button = Held;
-      }
-    }
-
-    if (pinRead == !pinsActive) { // key is now up
-      if (keyDownTicks > 1) {               //Make sure key was down through 1 complete tick to prevent random transients from registering as click
-        if (button == Held) {
-          button = Released;
-          doubleClickTicks = 0;
+      bool pinRead = getPinState();
+      
+      if (pinRead == pinsActive) { // key is down
+        keyDownTicks++;
+        if ((keyDownTicks > (buttonHoldTime / ENC_BUTTONINTERVAL)) && (buttonHeldEnabled)) {
+          button = Held;
         }
-        else {
-          #define ENC_SINGLECLICKONLY 1
-          if (doubleClickTicks > ENC_SINGLECLICKONLY) {   // prevent trigger in single click mode
-            if (doubleClickTicks < (buttonDoubleClickTime / ENC_BUTTONINTERVAL)) {
-              button = DoubleClicked;
-              doubleClickTicks = 0;
-            }
+      }
+
+      if (pinRead == !pinsActive) { // key is now up
+        if (keyDownTicks > 1) {               //Make sure key was down through 1 complete tick to prevent random transients from registering as click
+          if (button == Held) {
+            button = Released;
+            doubleClickTicks = 0;
           }
           else {
-            doubleClickTicks = (doubleClickEnabled) ? (buttonDoubleClickTime / ENC_BUTTONINTERVAL) : ENC_SINGLECLICKONLY;
+            #define ENC_SINGLECLICKONLY 1
+            if (doubleClickTicks > ENC_SINGLECLICKONLY) {   // prevent trigger in single click mode
+              if (doubleClickTicks < (buttonDoubleClickTime / ENC_BUTTONINTERVAL)) {
+                button = DoubleClicked;
+                doubleClickTicks = 0;
+              }
+            }
+            else {
+              doubleClickTicks = (doubleClickEnabled) ? (buttonDoubleClickTime / ENC_BUTTONINTERVAL) : ENC_SINGLECLICKONLY;
+            }
           }
         }
-      }
 
-      keyDownTicks = 0;
-    }
-  
-    if (doubleClickTicks > 0) {
-      doubleClickTicks--;
-      if (doubleClickTicks == 0) {
-        button = Clicked;
+        keyDownTicks = 0;
+      }
+    
+      if (doubleClickTicks > 0) {
+        doubleClickTicks--;
+        if (doubleClickTicks == 0) {
+          button = Clicked;
+        }
       }
     }
-  }
-#endif // WITHOUT_BUTTON
+  #endif // WITHOUT_BUTTON
 
 }
 
